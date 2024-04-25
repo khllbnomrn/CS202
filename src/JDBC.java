@@ -30,6 +30,7 @@ public class JDBC extends Thread {
         } catch (SQLException e) {
             System.err.println("Failed to connect to the database.");
         }
+        
     }
 
     public  boolean searchUser(String username) {
@@ -49,7 +50,7 @@ public class JDBC extends Thread {
     public void getConversationList(ArrayList<Conversation> conversations) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM Conversations WHERE id = ?")) {
             for (Conversation conversation : conversations) {
-                statement.setInt(1, conversation.getId());
+                statement.setInt(1, conversation.get_Id());
                 try (ResultSet resultSet = statement.executeQuery()) {
                    // conversation = resultSet.next();
                     connection.commit();
@@ -62,7 +63,7 @@ public class JDBC extends Thread {
     public void addConversation(Conversation conversation) {
         try (PreparedStatement statement = connection.prepareStatement("INSERT INTO Conversations (id, key, filepath) VALUES (?,?,?)")) {
 
-            statement.setInt(1, conversation.getId());
+            statement.setInt(1, conversation.get_Id());
             statement.setString(2, conversation.getKey());
             statement.setString(3, conversation.getFilePath());
             statement.executeUpdate();
@@ -72,6 +73,21 @@ public class JDBC extends Thread {
     }
     public void addUser(User user) {
         try (PreparedStatement statement = connection.prepareStatement("INSERT INTO Users (full_name, password, email,username,phone_number) VALUES (?,MD5(?), ?, ?, ?)")) {
+            statement.setString(1, user.getFullName());
+            statement.setString(5, user.getPhoneNumber());
+            statement.setString(3, user.getEmail());
+            statement.setString(4, user.getUsername());
+            statement.setString(2, user.getPassword());
+
+            statement.executeUpdate();
+            System.out.println("New user created");
+        } catch (SQLException e) {
+            System.err.println(e.getMessage());
+        }
+    }
+
+    public void updateUser(User user) {
+        try (PreparedStatement statement = connection.prepareStatement("UPDATE Users SET  (full_name, password, email,username,phone_number) VALUES (?,MD5(?), ?, ?, ?)")) {
             statement.setString(1, user.getFullName());
             statement.setString(5, user.getPhoneNumber());
             statement.setString(3, user.getEmail());
