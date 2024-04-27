@@ -1,34 +1,39 @@
-import java.io.File;
+
+import java.io.*;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Random;
 
 public class Conversation {
     private int id;
-    private String FilePath="Conversation";
-    private String key=keyGenerator(255);
-    ArrayList<Integer> participants = new ArrayList<Integer>();
+    private String FilePath = "Conversation";
+    private String key;
+    String participants_ids;
+    FileOutputStream fos;
     ArrayList<ClientHandler> clients = new ArrayList<ClientHandler>();
 
-    public Conversation(ArrayList<Integer> participants) {
-        for (int i=0;i<participants.size();i++)
-        this.FilePath = this.FilePath+participants.get(i);
-        this.FilePath=this.FilePath+".txt";
+
+    public Conversation(String participants_id) {
+
+        this.FilePath = this.FilePath + participants_id + ".txt";
+        key = keyGenerator(255);
     }
 
-    public Conversation( String FilePath, int id) {
-        this.id =id;
+    public Conversation(String FilePath, int id, String key) {
+        this.id = id;
         this.FilePath = FilePath;
+        this.key = key;
     }
 
-    public void addClient(ClientHandler client){
+    public void addClient(ClientHandler client) {
         clients.add(client);
     }
 
-    public void removeClient(ClientHandler client){
+    public void removeClient(ClientHandler client) {
         clients.remove(client);
     }
 
-    public String getKey(){
+    public String getKey() {
         return key;
     }
 
@@ -41,12 +46,52 @@ public class Conversation {
         return FilePath;
     }
 
+    public void loadConversationfromFile() throws FileNotFoundException {
+        try {
+            File file = new File(FilePath);
+            FileInputStream fis = new FileInputStream(file);
+
+            try {
+                ObjectInputStream OIS = new ObjectInputStream(fis);
+                while (fis.read() != -1) {
+                    try {
+                        System.out.println((Message) OIS.readObject());
+                    } catch (ClassNotFoundException e) {
+                        System.err.println(e.getMessage());
+                    }
+                }
+            } catch (IOException e) {
+                System.err.println(e.getMessage());
+            }
+
+        } catch (FileNotFoundException e) {
+            System.err.println(e.getMessage());
+        }
+    }
+
+    public void saveConversationtoFile(Message message) throws FileNotFoundException {
+        try {
+            File file = new File(FilePath);
+             fos= new FileOutputStream(file);
+
+            try {
+                ObjectOutput OOS = new ObjectOutputStream(fos);
+                OOS.writeObject(message);
+            } catch (IOException e) {
+                System.err.println(e.getMessage());
+            }
+
+        } catch (FileNotFoundException e) {
+            System.err.println(e.getMessage());
+        }
+    }
 
     public void broadcast(String message, ClientHandler sender) {
 
         for (ClientHandler client : clients) {
-            if (client==sender)
-                {continue;}
+            if (client == sender) {
+                continue;
+            }
             client.sendMessage("[" + client + "] " + message);
         }
     }
@@ -62,6 +107,6 @@ public class Conversation {
         }
         return stringBuilder.toString();
     }
-    
+
 
 }
