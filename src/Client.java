@@ -1,3 +1,4 @@
+
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -7,6 +8,7 @@ public class Client {
     private DataInputStream input;
     private DataOutputStream output;
     private Scanner std;
+    private Vigenere vigenere= new Vigenere();
 
     public Client(String serverAddress, int serverPort) {
         try {
@@ -15,9 +17,9 @@ public class Client {
 
             input = new DataInputStream(socket.getInputStream());
             output = new DataOutputStream(socket.getOutputStream());
-            Scanner std = new Scanner(System.in); 
+            Scanner std = new Scanner(System.in);
 
-            
+
         } catch (IOException e) {
             System.err.println(e.getMessage());
         }
@@ -49,7 +51,9 @@ public class Client {
     private void sendMessages() {
         try {
             while (true) {
+                std = new Scanner(System.in);
                 String message = std.nextLine();
+                vigenere.decrypt(message,"currentConv.getKey(");
                 output.writeUTF(message);
                 output.flush();
             }
@@ -71,7 +75,7 @@ public class Client {
     }
 
 
-  
+
     public static void main(String[] args) throws IOException{
         Client client = new Client("localhost", 12345);
         client.start();
