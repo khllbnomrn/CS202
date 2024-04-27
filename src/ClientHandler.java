@@ -1,6 +1,9 @@
+
 import java.sql.*;
 import java.io.*;
 import java.net.*;
+import java.util.ArrayList;
+import java.util.Date;
 
 
 public class ClientHandler extends Thread {
@@ -13,7 +16,9 @@ public class ClientHandler extends Thread {
     private Conversation currentConv=null;
     private User user;
     private String request;
-    
+    private ArrayList<String> Data;
+    private Vigenere vigenere= new Vigenere();
+
 
     public ClientHandler(Socket socket,JDBC DB, String request) throws IOException {
 
@@ -30,13 +35,22 @@ public class ClientHandler extends Thread {
 
             oos = new ObjectOutputStream(out);
             ois = new ObjectInputStream(in);
+            try {
+                Thread requestHandlerThread = new Thread(() -> {
+                    try {
+                        handleClientRequests(Data);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                requestHandlerThread.start();
+            }catch (Exception e)
+            {System.err.println(e.getMessage());}
 
-            Thread requestHandlerThread = new Thread(this::handleClientRequests);
-            requestHandlerThread.start();
 
 
         } catch (IOException e) {
-            System.err.println(e.getMessage());;
+            System.err.println(e.getMessage());
         } finally {
             try {
                 socket.close();
@@ -48,15 +62,16 @@ public class ClientHandler extends Thread {
     }
 
     private void handleConversationSelection() throws IOException {
-
+            out.write(currentConv.get_Id());
     }
+
 
     private void handleMessages() throws IOException {
         String message;
         try {
             System.out.println("client handler handle message test");
             while ((message = in.readUTF()) != null) {
-               sendMessage(message);
+                sendMessage(message);
             }
         }catch (IOException e) {
             System.err.println(e.getMessage());
@@ -64,40 +79,46 @@ public class ClientHandler extends Thread {
 
     }
 
-    private void handleClientRequests() throws IOException{
+    private void handleClientRequests(ArrayList <String> Data) throws IOException{
         try {
+            try {
             while (true) {
 
                 switch (request) {
                     case "LOGIN":
-                        handleLogin();
+                        handleLogin(Data);
                         break;
                     case "SIGNUP":
-                        handleSignUp();
+                        handleSignUp(Data);
                         break;
                     case "ADDFRIEND":
-                        addFriend();
+                        addFriend(Data);
                         break;
                     case "NEWCONVERSATION":
-                        NewConversation();
+                        NewConversation(Data);
                         break;
                     case "LOGOUT":
-                        try{
+                        try {
                             in.close();
                             out.close();
-                            User user= null;
-                            currentConv= null;
-                        }catch(Exception e)
-                        {System.err.println(e.getMessage());}
+                            User user = null;
+                            currentConv = null;
+                        } catch (IOException e) {
+                            System.err.println(e.getMessage());
+                        }
                         break;
                     case "UPDATEPROFILE":
-                        updateUser();
+                        updateUser(Data);
                         break;
-                
+
                 }
             }
-        } catch (IOException e) {
-            e.printStackTrace();
+        }catch (SQLException e)
+        {
+            System.err.println(e.getMessage());
+        }
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
         } finally {
             try {
                 socket.close();
@@ -107,44 +128,49 @@ public class ClientHandler extends Thread {
         }
     }
 
-    private void handleLogin() {
-       
-        if (DB.searchUser("username"))
+    private void handleLogin(ArrayList<String> Data)  {
+
+        if (DB.searchUser(Data.get(0)))
         {
-        User user = DB.authenticateUser("username", "password");
-        if (user!=null) {
-            try{
-            oos.writeObject(user);
-            sendMessage("LOGIN_SUCCESS");
-            }catch(IOException e)
-            {System.err.println(e.getMessage());}
-        } else {
-            
-            sendMessage("LOGIN_FAILED");
-        }
+            User user = DB.authenticateUser("username", "password");
+            if (user!=null) {
+                try{
+                    oos.writeObject(user);
+                    sendMessage("LOGIN_SUCCESS");
+                }catch(IOException e)
+                {System.err.println(e.getMessage());}
+            } else {
+
+                sendMessage("LOGIN_FAILED");
+            }
         }
     }
 
-    public void NewConversation(){
-        currentConv=new conversation();
+    public void NewConversation(ArrayList<String> usernames){
+
+        String participant_ids=DB.getUserID(usernames);
+        currentConv=new Conversation(participant_ids);
         DB.addConversation(currentConv);
     }
 
-    private void handleSignUp() throws UserExistsException{
-        
-        
+    private void handleSignUp(ArrayList<String> Data) throws SQLException{
+
+        user = new User (Data.get(1),Data.get(3),Data.get(2), Data.get(0),Data.get(4));
+        DB.addUser(user);
+        System.out.println("user added");
         try{
-            DB.addUser(user);
-        }catch(UserExistsException e)
-        {
-            System.err.println(e.getMessage());
-        }    
-            
-        
+            oos.writeObject(user);
+        }catch(IOException e)
+    {System.err.println(e.getMessage());}
+
     }
 
-    public void addFriend(){
-        
+    public void addFriend(ArrayList<String> Data) throws NumberFormatException{
+        try {
+            DB.addFriend(Integer.valueOf(Data.get(0)),Integer.valueOf(Data.get(1)));
+        }catch (NumberFormatException e) {
+            System.err.println(e.getMessage());
+        }
     }
 
     public void logout(){
@@ -153,8 +179,8 @@ public class ClientHandler extends Thread {
 
     }
 
-    public void updateUser(){
-            DB.updateUser(user);
+    public void updateUser(ArrayList<String> Data){
+        DB.updateUser(Data);
     }
 
     public void newConv(){
@@ -164,19 +190,24 @@ public class ClientHandler extends Thread {
     private void joinConv(Conversation conv) {
         currentConv = conv;
         currentConv.addClient(this);
+        try {
+            handleConversationSelection();
+        }catch (IOException e)
+        {System.err.println(e.getMessage());}
+
         System.out.println(" has joined " +conv.getFilePath());
     }
 
     private void leaveConv() {
-            currentConv.removeClient(this);
-            System.out.println( " has left room: " + currentConv.getFilePath());
-            currentConv = null;
-            try {
-                handleConversationSelection();
-            } catch (IOException e) {
-                System.err.println(e.getMessage());
+        currentConv.removeClient(this);
+        System.out.println( " has left room: " + currentConv.getFilePath());
+        currentConv = null;
+        try {
+            handleConversationSelection();
+        } catch (IOException e) {
+            System.err.println(e.getMessage());
 
-            }
+        }
 
     }
 
@@ -188,8 +219,8 @@ public class ClientHandler extends Thread {
     }
 
     public void switchConv(Conversation conversation) {
-            leaveConv();
-            joinConv(conversation);
+        leaveConv();
+        joinConv(conversation);
     }
 
     public void sendMessage(String message) {
@@ -203,4 +234,3 @@ public class ClientHandler extends Thread {
 
 
 }
-
